@@ -24,7 +24,7 @@ void process_connection(int sockfd);
 
 int main(int argc, char **argv)
 {
-  int portno; /* port to listen on */
+  int port_number; /* port to listen on */
 
   /*
    * check command line arguments
@@ -36,29 +36,29 @@ int main(int argc, char **argv)
   }
 
   // DONE: Server port number taken as command line argument
-  portno = atoi(argv[1]);
-  cout << portno << endl;
-  int accept_sock, connection_sock;
+  port_number = atoi(argv[1]);
+  cout << port_number << endl;
+  int socket_accept, socket_connect;
   struct sockaddr_in my_addr, client_addr;
 
-  connection_sock = socket(AF_INET, SOCK_STREAM, 0);
+  socket_connect = socket(AF_INET, SOCK_STREAM, 0);
 
   my_addr.sin_family = AF_INET;
-  my_addr.sin_port = htons(portno);
-  bind(connection_sock, (struct sockaddr *)&my_addr, sizeof(struct sockaddr_in));
+  my_addr.sin_port = htons(port_number);
+  bind(socket_connect, (struct sockaddr *)&my_addr, sizeof(struct sockaddr_in));
 
-  listen(connection_sock, 50);
+  listen(socket_connect, 50);
 
-  int client_len = sizeof(client_addr);
+  int sz_client = sizeof(client_addr);
 
   while (true)
   {
-    accept_sock = accept(connection_sock, (struct sockaddr *)&client_addr, (socklen_t *)&client_len);
-    process_connection(accept_sock);
+    socket_accept = accept(socket_connect, (struct sockaddr *)&client_addr, (socklen_t *)&sz_client);
+    process_connection(socket_accept);
   }
   
   
-  close(connection_sock);
+  close(socket_connect);
 }
 
 void process_connection(int sockfd)
@@ -67,7 +67,7 @@ void process_connection(int sockfd)
 
   memset(buffer, 0, sizeof(buffer));
   string additional = "";
-  string temp;
+  string input_s;
 
   while (true)
   {
@@ -76,60 +76,60 @@ void process_connection(int sockfd)
 
     while (true)
     {
-      streamstring >> temp;
-      if (temp == "READ")
+      streamstring >> input_s;
+      if (input_s == "READ")
       {
         // cout <<"READ" <<endl;
-        streamstring >> temp;
-        if (KV_data.find(temp) == KV_data.end())
+        streamstring >> input_s;
+        if (KV_data.find(input_s) == KV_data.end())
         {
-          const char *sendd = "NULL\n";
-          write(sockfd, sendd, strlen(sendd));
+          const char *send_d = "NULL\n";
+          write(sockfd, send_d, strlen(send_d));
         }
         else
         {
 
-          string se = KV_data[temp] + "\n";
-          const char *sendd = se.c_str();
-          write(sockfd, sendd, strlen(sendd));
+          string se = KV_data[input_s] + "\n";
+          const char *send_d = se.c_str();
+          write(sockfd, send_d, strlen(send_d));
         }
       }
-      else if (temp == "WRITE")
+      else if (input_s == "WRITE")
       {
-        streamstring >> temp;
-        string key = temp;
-        streamstring >> temp;
-        temp = temp.substr(1, temp.length() - 1);
-        KV_data[key] = temp;
-        const char *sendd = "FIN\n";
-        write(sockfd, sendd, strlen(sendd));
+        streamstring >> input_s;
+        string key = input_s;
+        streamstring >> input_s;
+        input_s = input_s.substr(1, input_s.length() - 1);
+        KV_data[key] = input_s;
+        const char *send_d = "FIN\n";
+        write(sockfd, send_d, strlen(send_d));
       }
-      else if (temp == "COUNT")
+      else if (input_s == "COUNT")
       {
         // cout <<"COUNT" <<endl;
         int count = KV_data.size();
         string se = to_string(count) + "\n";
-        const char *sendd = se.c_str();
-        write(sockfd, sendd, strlen(sendd));
+        const char *send_d = se.c_str();
+        write(sockfd, send_d, strlen(send_d));
       }
-      else if (temp == "DELETE")
+      else if (input_s == "DELETE")
       {
         // cout <<"DELETE" <<endl;
-        streamstring >> temp;
-        if (KV_data.find(temp) == KV_data.end())
+        streamstring >> input_s;
+        if (KV_data.find(input_s) == KV_data.end())
         {
 
-          const char *sendd = "NULL\n";
-          write(sockfd, sendd, strlen(sendd));
+          const char *send_d = "NULL\n";
+          write(sockfd, send_d, strlen(send_d));
         }
         else
         {
-          KV_data.erase(temp);
-          const char *sendd = "FIN\n";
-          write(sockfd, sendd, strlen(sendd));
+          KV_data.erase(input_s);
+          const char *send_d = "FIN\n";
+          write(sockfd, send_d, strlen(send_d));
         }
       }
-      else if (temp == "END")
+      else if (input_s == "END")
       {
         write(sockfd , "\n", strlen("\n"));
         close(sockfd);
@@ -139,7 +139,7 @@ void process_connection(int sockfd)
       {
         if (streamstring.str().length() < 1)
         {
-          additional = temp;
+          additional = input_s;
           break;
         }
       }
@@ -150,7 +150,7 @@ void process_connection(int sockfd)
         break;
       }
 
-      cout << temp << endl;
+      cout << input_s << endl;
     }
   }
 }
