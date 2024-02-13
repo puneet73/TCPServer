@@ -6,12 +6,12 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-
 using namespace std;
+
 class Server{
     public:
         int PORT;
-        std::string IP;
+        string IP;
         Server(int port){
             PORT = port;
             sockaddr_in server_addr;
@@ -23,12 +23,12 @@ class Server{
             int iSetOption = 1;
             setsockopt(sockid, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,sizeof(iSetOption));
             if(bind(sockid, (sockaddr*)&server_addr, sizeof(server_addr)) < 0){
-                std::cerr << "Error binding, Port might be in use" << std::endl;
+                cerr << "Error binding, Port might be in use" << endl;
                 exit(0); 
             }
 
             if(listen(sockid, 5) < 0){
-                std::cerr << "Error Listening" << std::endl;
+                cerr << "Error Listening" << endl;
                 exit(0);
             }
             
@@ -42,7 +42,7 @@ class Server{
             while(1){
                 conn = accept(sockid, nullptr, nullptr); 
                 if(conn < 0){
-                    std::cerr << "Error Connecting to client" << std::endl;
+                    cerr << "Error Connecting to client" << endl;
                     exit(0);
                 }
                 while(fcntl(conn, F_GETFD) != -1){
@@ -56,22 +56,15 @@ class Server{
         }
 
     private:
-        std::unordered_map<std::string, std::string> kv_store;
-        std::queue<std::string> requests;
+        unordered_map<string, string> kv_store;
+        queue<string> requests;
         void parse_command(char* buffer){
             char* p = buffer;
-            int mode = 0; // UNDEFINED
-            /*
-                1 -> Read
-                2 -> Write
-                3 -> Count
-                4 -> Delete
-                5 -> End
-            */
+            int mode = 0; 
             int i=0;
-            std::cout << "Parsing Started\n" << std::endl;
+            cout << "Parsing Started\n" << endl;
             while(*p && i<buffsize){
-                std::string temp = "";
+                string temp = "";
                 while(*p != '\n'){
                     i++;
                     temp += *p;
@@ -129,19 +122,19 @@ class Server{
                 requests.push(temp); 
             }
             buffer[i] = 0;
-            std::cout << "Parsing Done\n" << std::endl;
+            cout << "Parsing Done\n" << endl;
         }
         void exec_commands(int sock){
-            std::string temp = "";
-            std::string key;
-            std::string val;
-            std::cout << "Execute Started\n";
+            string temp = "";
+            string key;
+            string val;
+            cout << "Execute Started\n";
             while(!requests.empty()){
                 temp = requests.front();
                 requests.pop();
                 if(temp[0] == '1'){
                     key = temp.substr(1, temp.size() -1);
-                    std::cout << "read " << "\t" << key << std::endl;
+                    cout << "read " << "\t" << key << endl;
                     if(kv_store.find(key) == kv_store.end()){
                         write(sock, "NULL\n", 5);
                     }
@@ -152,49 +145,45 @@ class Server{
                     size_t idx = temp.find(':');
                     key = temp.substr(1, idx-1);
                     val = temp.substr(idx+1, temp.size() - idx -1);
-                    std::cout << "write " << "\t" << key << "\t" << val << std::endl;
+                    cout << "write " << "\t" << key << "\t" << val << endl;
                     kv_store[key] = val;
                     write(sock, "FIN\n", 4);
                 }
 
                 else if(temp[0] == '3'){
-                    std::cout << "count " << std::endl;
-                    write(sock, (std::to_string(kv_store.size())+"\n").c_str(), (std::to_string(kv_store.size())).size()+1);
+                    cout << "count " << endl;
+                    write(sock, (to_string(kv_store.size())+"\n").c_str(), (to_string(kv_store.size())).size()+1);
                 }
                 else if(temp[0] == '4'){
                     key = temp.substr(1, temp.size() - 1);
-                    std::cout << "delete " << "\t" << key << std::endl;
+                    cout << "delete " << "\t" << key << endl;
                     if(kv_store.find(key) == kv_store.end()){
                         write(sock, "NULL\n", 5);
                     }
                     else write(sock, "FIN\n", 4);
                 }
                 else{
-                    std::cout << "end " << std::endl;
+                    cout << "end " << endl;
                     write(sock, "\n", 1);
                     close(sock);
                 }
 
             }
-            std::cout << "Execute Done\n";
+            cout << "Execute Done\n";
         }
         int sockid;
         int buffsize = 1024;
 };
+
 int main(int argc, char ** argv) {
-  int portno; /* port to listen on */
-  
-  /* 
-   * check command line arguments 
-   */
-  if (argc != 2) {
-    fprintf(stderr, "usage: %s <port>\n", argv[0]);
-    exit(1);
-  }
+    int portno; 
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        exit(1);
+    }
 
-  // DONE: Server port number taken as command line argument
-  portno = atoi(argv[1]);
+    // DONE: Server port number taken as command line argument
+    portno = atoi(argv[1]);
 
-  Server server(portno);
-
+    Server server(portno);
 }
