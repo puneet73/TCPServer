@@ -15,7 +15,11 @@ void* serve_helper(void* context);
 void parse_command(char* buffer, queue<string>& reqs, pthread_mutex_t& req_m, int buffsize);
 void exec_commands(queue<string>& reqs, int soc, unordered_map<string, string>& kv_store, pthread_mutex_t& kv_m);
 
-void serve_client(queue<int>& clients, pthread_mutex_t& client_m, pthread_mutex_t& kv_m, int buffsize) {
+void* serve_helper(void* context);
+void parse_command(char* buffer, queue<string>& reqs, pthread_mutex_t& req_m, int buffsize);
+void exec_commands(queue<string>& reqs, int soc, unordered_map<string, string>& kv_store, pthread_mutex_t& kv_m);
+
+void serve_client(queue<int>& clients, pthread_mutex_t& client_m, pthread_mutex_t& req_m, unordered_map<string, string>& kv_store, pthread_mutex_t& kv_m, int buffsize) {
     char buffer[buffsize];
     int conn;
     queue<string> requests;
@@ -43,15 +47,16 @@ void serve_client(queue<int>& clients, pthread_mutex_t& client_m, pthread_mutex_
 }
 
 void* serve_helper(void* context) {
-    tuple<queue<int>*, pthread_mutex_t*, pthread_mutex_t*, int> params =
-        *reinterpret_cast<tuple<queue<int>*, pthread_mutex_t*, pthread_mutex_t*, int>*>(context);
+    tuple<queue<int>*, pthread_mutex_t*, pthread_mutex_t*, unordered_map<string, string>*, int> params =
+        *reinterpret_cast<tuple<queue<int>*, pthread_mutex_t*, pthread_mutex_t*, unordered_map<string, string>*, int>*>(context);
 
     queue<int>& clients = *get<0>(params);
     pthread_mutex_t& client_m = *get<1>(params);
-    pthread_mutex_t& kv_m = *get<2>(params);
-    int buffsize = get<3>(params);
+    pthread_mutex_t& req_m = *get<2>(params);
+    unordered_map<string, string>& kv_store = *get<3>(params);
+    int buffsize = get<4>(params);
 
-    serve_client(clients, client_m, kv_m, buffsize);
+    serve_client(clients, client_m, req_m, kv_store, kv_m, buffsize);
     return nullptr;
 }
 
