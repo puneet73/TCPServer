@@ -1,13 +1,5 @@
-/*
- * tcpserver.c - A multithreaded TCP echo server
- * usage: tcpserver <port>
- *
- * Testing :
- * nc localhost <port> < input.txt
- */
-#include <unistd.h>
 #include <iostream>
-#include <stdlib.h>
+#include <cstdlib>
 #include <string>
 #include <sstream>
 #include <cstring>
@@ -15,142 +7,93 @@
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
-#include <bits/stdc++.h>
+#include <unordered_map>
+
 using namespace std;
 
+const int BUFFER_SIZE = 1024;
 unordered_map<string, string> KV_data;
+pthread_mutex_t kv_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void process_connection(int sockfd);
 
 int main(int argc, char **argv)
 {
-  int port_number; /* port to listen on */
+    int port_number;
 
-  /*
-   * check command line arguments
-   */
-  if (argc != 2)
-  {
-    fprintf(stderr, "usage: %s <port>\n", argv[0]);
-    exit(1);
-  }
+    if (argc != 2)
+    {
+        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        exit(1);
+    }
 
-  // DONE: Server port number taken as command line argument
-  port_number = atoi(argv[1]);
-  cout << port_number << endl;
-  int socket_accept, socket_connect;
-  struct sockaddr_in my_addr, client_addr;
+    port_number = atoi(argv[1]);
+    cout << port_number << endl;
 
-  socket_connect = socket(AF_INET, SOCK_STREAM, 0);
+    int socket_connect;
+    struct sockaddr_in my_addr;
 
-  my_addr.sin_family = AF_INET;
-  my_addr.sin_port = htons(port_number);
-  bind(socket_connect, (struct sockaddr *)&my_addr, sizeof(struct sockaddr_in));
+    socket_connect = socket(AF_INET, SOCK_STREAM, 0);
 
-  listen(socket_connect, 50);
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_port = htons(port_number);
+    bind(socket_connect, (struct sockaddr *)&my_addr, sizeof(struct sockaddr_in));
 
-  int sz_client = sizeof(client_addr);
+    listen(socket_connect, 50);
 
-  while (true)
-  {
-    socket_accept = accept(socket_connect, (struct sockaddr *)&client_addr, (socklen_t *)&sz_client);
-    process_connection(socket_accept);
-  }
-  
-  
-  close(socket_connect);
+    while (true)
+    {
+        int socket_accept;
+        struct sockaddr_in client_addr;
+        socklen_t sz_client = sizeof(client_addr);
+
+        socket_accept = accept(socket_connect, (struct sockaddr *)&client_addr, &sz_client);
+        process_connection(socket_accept);
+        close(socket_accept);  // Close the accepted socket after processing
+    }
+
+    close(socket_connect);
 }
 
 void process_connection(int sockfd)
 {
-  char buffer[1024];
+    char buffer[BUFFER_SIZE];
 
-  memset(buffer, 0, sizeof(buffer));
-  string additional = "";
-  string input_s;
-
-  while (true)
-  {
-    read(sockfd, buffer, 1024);
-    istringstream streamstring(additional + (string)buffer);
+    memset(buffer, 0, sizeof(buffer));
+    string additional = "";
+    string input_s;
 
     while (true)
     {
-      streamstring >> input_s;
-      if (input_s == "READ")
-      {
-        // cout <<"READ" <<endl;
-        streamstring >> input_s;
-        if (KV_data.find(input_s) == KV_data.end())
-        {
-          const char *send_d = "NULL\n";
-          write(sockfd, send_d, strlen(send_d));
-        }
-        else
-        {
+        ssize_t bytes_read = read(sockfd, buffer, BUFFER_SIZE - 1); // Ensure null-terminated buffer
 
-          string se = KV_data[input_s] + "\n";
-          const char *send_d = se.c_str();
-          write(sockfd, send_d, strlen(send_d));
-        }
-      }
-      else if (input_s == "WRITE")
-      {
-        streamstring >> input_s;
-        string key = input_s;
-        streamstring >> input_s;
-        input_s = input_s.substr(1, input_s.length() - 1);
-        KV_data[key] = input_s;
-        const char *send_d = "FIN\n";
-        write(sockfd, send_d, strlen(send_d));
-      }
-      else if (input_s == "COUNT")
-      {
-        // cout <<"COUNT" <<endl;
-        int count = KV_data.size();
-        string se = to_string(count) + "\n";
-        const char *send_d = se.c_str();
-        write(sockfd, send_d, strlen(send_d));
-      }
-      else if (input_s == "DELETE")
-      {
-        // cout <<"DELETE" <<endl;
-        streamstring >> input_s;
-        if (KV_data.find(input_s) == KV_data.end())
+        if (bytes_read <= 0)
         {
-
-          const char *send_d = "NULL\n";
-          write(sockfd, send_d, strlen(send_d));
+            break; // Break if no more data or an error occurs
         }
-        else
+
+        buffer[bytes_read] = '\0'; // Null-terminate the buffer
+
+        istringstream streamstring(additional + (string)buffer);
+
+        while (true)
         {
-          KV_data.erase(input_s);
-          const char *send_d = "FIN\n";
-          write(sockfd, send_d, strlen(send_d));
-        }
-      }
-      else if (input_s == "END")
-      {
-        write(sockfd , "\n", strlen("\n"));
-        close(sockfd);
-        return;
-      }
-      else
-      {
-        if (streamstring.str().length() < 1)
-        {
-          additional = input_s;
-          break;
-        }
-      }
+            streamstring >> input_s;
+            // ...
 
-      if (streamstring.str().length() < 1)
-      {
-        additional = "";
-        break;
-      }
+            pthread_mutex_lock(&kv_mutex); // Lock before accessing shared data
+            // ... (perform operations on KV_data)
+            pthread_mutex_unlock(&kv_mutex); // Unlock after accessing shared data
 
-      cout << input_s << endl;
+            // ...
+
+            if (streamstring.str().length() < 1)
+            {
+                additional = "";
+                break;
+            }
+
+            cout << input_s << endl;
+        }
     }
-  }
 }
