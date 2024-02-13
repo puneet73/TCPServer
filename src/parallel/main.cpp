@@ -1,20 +1,10 @@
+#include <bits/stdc++.h>
 #include <pthread.h>
 #include <arpa/inet.h>
-#include <string.h>
-#include <iostream>
-#include <unordered_map>
-#include <queue>
-#include <vector>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <cstring>
-#include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <cstring>
 #include <pthread.h>
 #include <signal.h>
 using namespace std;
@@ -23,7 +13,7 @@ class Server{
     public:
         int PORT;
         int SIZE;
-        std::string IP;
+        string IP;
         Server(int port, int size){
             PORT = port;
             SIZE = size;
@@ -40,27 +30,24 @@ class Server{
             int iSetOption = 1;
             setsockopt(sockid, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,sizeof(iSetOption));
             if(bind(sockid, (sockaddr*)&server_addr, sizeof(server_addr)) < 0){
-                std::cout << "Error binding, Port might be in use" << std::endl;
-                std::cerr << "Error " << std::strerror(errno) << std::endl;
+                cout << "Error binding, Port might be in use" << endl;
+                cerr << "Error " << strerror(errno) << endl;
                 exit(0); 
             }
 
             if(listen(sockid, 1024) < 0){
-                std::cerr << "Error Listening" << std::endl;
+                cerr << "Error Listening" << endl;
                 exit(0);
             }
             for(int i=0; i<SIZE; i++){
                 if(pthread_create(threads+i, NULL, &Server::serve_helper, this) < 0){
-                    std::cerr << "Error in creating threads" << std::endl;
+                    cerr << "Error in creating threads" << endl;
                     
                     exit(0);
                 }
             }
             Add_request();
             close(sockid);
-            // for(int i=0; i<SIZE; i++){
-            //     pthread_join(threads[i], NULL);
-            // }
         }
 
         int Add_request(){
@@ -69,9 +56,9 @@ class Server{
                 sockaddr_in newSockaddr;
                 socklen_t socklen = sizeof(newSockaddr);
                 conn = accept(sockid, (sockaddr*)&newSockaddr, &socklen); 
-                std::cout << "New Client" << std::endl;
+                cout << "New Client" << endl;
                 if(conn < 0){
-                    std::cout << "Error Connecting to client" << std::endl;
+                    cout << "Error Connecting to client" << endl;
                     exit(0);
                 }
                 pthread_mutex_lock(&client_m);
@@ -82,25 +69,18 @@ class Server{
         }
 
     private:
-        std::unordered_map<std::string, std::string> kv_store;
-        std::queue<int> clients;
+        unordered_map<string, string> kv_store;
+        queue<int> clients;
         pthread_mutex_t req_m, kv_m, client_m;
         pthread_t* threads;
         
-        void parse_command(char* buffer, std::queue<std::string>& reqs){
+        void parse_command(char* buffer, queue<string>& reqs){
             char* p = buffer;
-            int mode = 0; // UNDEFINED
-            /*
-                1 -> Read
-                2 -> Write
-                3 -> Count
-                4 -> Delete
-                5 -> End
-            */
+            int mode = 0;
             int i=0;
-            std::cout << "Parsing Started\n" << std::endl;
+            cout << "Parsing Started\n" << endl;
             while(*p && i<buffsize){
-                std::string temp = "";
+                string temp = "";
                 while(*p != '\n'){
                     i++;
                     temp += *p;
@@ -160,15 +140,15 @@ class Server{
             }
             buffer[i] = 0;
             pthread_mutex_unlock(&req_m);
-            std::cout << "Parsing Done\n" << std::endl;
+            cout << "Parsing Done\n" << endl;
         }
-        void exec_commands(std::queue<std::string>& reqs, int soc){
-            std::string temp;
-            std::string key;
-            std::string val;
+        void exec_commands(queue<string>& reqs, int soc){
+            string temp;
+            string key;
+            string val;
             int sock;
-            std::cout << "Execute Started\n";
-            // Comment for wf
+            cout << "Execute Started\n";
+            // workflow starts
             while(!reqs.empty()){
                 temp = reqs.front();
                 reqs.pop();
@@ -176,7 +156,7 @@ class Server{
                 sock = soc;
                 if(temp[0] == '1'){
                     key = temp.substr(1, temp.size() -1);
-                    std::cout << "read " << "\t" << key << std::endl;
+                    cout << "read " << "\t" << key << endl;
                     if(kv_store.find(key) == kv_store.end()){
                         write(sock, "NULL\n", 5);
                     }
@@ -187,30 +167,30 @@ class Server{
                     size_t idx = temp.find(':');
                     key = temp.substr(1, idx-1);
                     val = temp.substr(idx+1, temp.size() - idx -1);
-                    std::cout << "write " << "\t" << key << "\t" << val << std::endl;
+                    cout << "write " << "\t" << key << "\t" << val << endl;
                     kv_store[key] = val;
                     write(sock, "FIN\n", 4);
                 }
 
                 else if(temp[0] == '3'){
-                    std::cout << "count " << std::endl;
-                    write(sock, (std::to_string(kv_store.size())+"\n").c_str(), (std::to_string(kv_store.size())).size()+1);
+                    cout << "count " << endl;
+                    write(sock, (to_string(kv_store.size())+"\n").c_str(), (to_string(kv_store.size())).size()+1);
                 }
                 else if(temp[0] == '4'){
                     key = temp.substr(1, temp.size() - 1);
-                    std::cout << "delete " << "\t" << key << std::endl;
+                    cout << "delete " << "\t" << key << endl;
                     if(kv_store.find(key) == kv_store.end()){
                         write(sock, "NULL\n", 5);
                     }
                     else write(sock, "FIN\n", 4);
                 }
                 else if(temp[0] == '5'){
-                    std::cout << "end " << std::endl;
+                    cout << "end " << endl;
                     write(sock, "\n", 1);
                     close(sock);
                 }
                 pthread_mutex_unlock(&kv_m);
-                std::cout << "Execute Done\n";
+                cout << "Execute Done\n";
             }
             
         }
@@ -218,21 +198,21 @@ class Server{
         void serve_client(){
             char buffer[buffsize];
             int conn;
-            std::queue<std::string> requests;
+            queue<string> requests;
             while(1){
                 pthread_mutex_lock(&client_m);
                 if(clients.size() <= 0){
                     pthread_mutex_unlock(&client_m);
                     continue;
                 }
-                std::cout << "Got a client" << std::endl;
+                cout << "Got a client" << endl;
                 conn = clients.front();
                 clients.pop();
                 pthread_mutex_unlock(&client_m);
                 while(fcntl(conn, F_GETFD) != -1){
                     memset(buffer, 0, buffsize);
                     read(conn, buffer, buffsize);
-                    std::cout << buffer << std::endl;
+                    cout << buffer << endl;
                     parse_command(buffer, requests);
                     exec_commands(requests, conn);
                 }
@@ -249,17 +229,11 @@ class Server{
         int buffsize = 4096;
 };
 int main(int argc, char ** argv) {
-  int portno; /* port to listen on */
-  
-  /* 
-   * check command line arguments 
-   */
-  if (argc != 2) {
-    fprintf(stderr, "usage: %s <port>\n", argv[0]);
-    exit(1);
-  }
-
-  // DONE: Server port number taken as command line argument
-  portno = atoi(argv[1]);
-  Server server(portno, 8);
+    int portno; 
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        exit(1);
+    }
+    portno = atoi(argv[1]);
+    Server server(portno, 8);
 }
