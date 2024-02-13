@@ -1,21 +1,10 @@
+#include <bits/stdc++.h>
 #include <pthread.h>
 #include <arpa/inet.h>
-#include <string.h>
-#include <iostream>
-#include <unordered_map>
-#include <queue>
-#include <vector>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <cstring>
-#include <stdlib.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <cstring>
 #include <pthread.h>
-#include <iostream>
 
 
 using namespace std;
