@@ -17,7 +17,7 @@
 #include <cstring>
 #include <pthread.h>
 #include <signal.h>
-
+using namespace std;
 
 class Server{
     public:
