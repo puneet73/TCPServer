@@ -193,13 +193,14 @@ int main(int argc, char** argv) {
     pthread_mutex_t kv_m = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_t client_m = PTHREAD_MUTEX_INITIALIZER;
     pthread_t threads[SIZE];
+    int sockid;
 
     sockaddr_in server_addr;
     server_addr.sin_port = htons(portno);
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    int sockid = socket(AF_INET, SOCK_STREAM, 0);
+    sockid = socket(AF_INET, SOCK_STREAM, 0);
     int iSetOption = 1;
     setsockopt(sockid, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption, sizeof(iSetOption));
 
@@ -214,8 +215,10 @@ int main(int argc, char** argv) {
         exit(0);
     }
 
+    tuple<queue<int>*, pthread_mutex_t*, pthread_mutex_t*, unordered_map<string, string>*, pthread_mutex_t*, int> params =
+        {&clients, &client_m, &req_m, &kv_store, &kv_m, buffsize};
+
     for (int i = 0; i < SIZE; i++) {
-        tuple<queue<int>*, pthread_mutex_t*, pthread_mutex_t*, int> params = {&clients, &client_m, &kv_m, buffsize};
         if (pthread_create(threads + i, NULL, serve_helper, &params) < 0) {
             cerr << "Error in creating threads" << endl;
             exit(0);
@@ -241,3 +244,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
