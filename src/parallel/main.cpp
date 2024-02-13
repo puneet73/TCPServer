@@ -17,13 +17,20 @@ using namespace std;
 
 const int buffsize = 4096;
 
-void parse_command(char* buffer, queue<string>& reqs, pthread_mutex_t& req_m) {
+void parse_command(char* buffer, std::queue<std::string>& reqs, pthread_mutex_t& req_m) {
     char* p = buffer;
-    int mode = 0; 
+    int mode = 0; // UNDEFINED
+    /*
+        1 -> Read
+        2 -> Write
+        3 -> Count
+        4 -> Delete
+        5 -> End
+    */
     int i = 0;
-    cout << "Parsing Started\n" << endl;
+    std::cout << "Parsing Started\n" << std::endl;
     while (*p && i < buffsize) {
-        string temp = "";
+        std::string temp = "";
         while (*p != '\n') {
             i++;
             temp += *p;
@@ -78,7 +85,7 @@ void parse_command(char* buffer, queue<string>& reqs, pthread_mutex_t& req_m) {
     }
     buffer[i] = 0;
     pthread_mutex_unlock(&req_m);
-    cout << "Parsing Done\n" << endl;
+    std::cout << "Parsing Done\n" << std::endl;
 }
 
 void exec_commands(queue<string>& reqs, int soc, unordered_map<string, string>& kv_store, pthread_mutex_t& kv_m) {
