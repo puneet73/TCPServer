@@ -7,8 +7,8 @@
 #include <sys/socket.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
-#include <unordered_map>
-
+#include <unistd.h>  // Add this line for close function
+#include <sys/types.h> 
 using namespace std;
 
 const int BUFFER_SIZE = 1024;
