@@ -1,217 +1,211 @@
-#include <iostream>
-#include <cstring>
-#include <sstream>
-#include <unistd.h>
 #include <pthread.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <string.h>
+#include <iostream>
 #include <unordered_map>
+#include <queue>
+#include <vector>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <cstring>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
+#include <cstring>
+#include <pthread.h>
+#include <iostream>
+
 
 using namespace std;
+class Server{
+    public:
+        int PORT;
+        std::string IP;
+        Server(int port){
+            PORT = port;
+            sockaddr_in server_addr;
+            server_addr.sin_port = htons(PORT);
+            server_addr.sin_family = AF_INET;
+            server_addr.sin_addr.s_addr = INADDR_ANY;
 
-// Handle individual client connections
-int handleConnection(int &);
+            sockid = socket(AF_INET, SOCK_STREAM, 0);
+            int iSetOption = 1;
+            setsockopt(sockid, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,sizeof(iSetOption));
+            if(bind(sockid, (sockaddr*)&server_addr, sizeof(server_addr)) < 0){
+                std::cerr << "Error binding, Port might be in use" << std::endl;
+                exit(0); 
+            }
 
-// Create and configure server socket
-int getServerSocket(const int &port);
+            if(listen(sockid, 5) < 0){
+                std::cerr << "Error Listening" << std::endl;
+                exit(0);
+            }
+            
+            Add_request();
+            close(sockid);
+        }
 
-unordered_map<string, string> KV_DATASTORE;
+        int Add_request(){
+            int conn;
+            char buffer[buffsize];
+            while(1){
+                conn = accept(sockid, nullptr, nullptr); 
+                if(conn < 0){
+                    std::cerr << "Error Connecting to client" << std::endl;
+                    exit(0);
+                }
+                while(fcntl(conn, F_GETFD) != -1){
+                    memset(buffer, 0, buffsize);
+                    read(conn, buffer, buffsize);
+                    parse_command(buffer);
+                    exec_commands(conn);
+                }
+                
+            }
+        }
 
-int main(int argc, char **argv)
-{
-	int port;
+    private:
+        std::unordered_map<std::string, std::string> kv_store;
+        std::queue<std::string> requests;
+        void parse_command(char* buffer){
+            char* p = buffer;
+            int mode = 0; // UNDEFINED
+            /*
+                1 -> Read
+                2 -> Write
+                3 -> Count
+                4 -> Delete
+                5 -> End
+            */
+            int i=0;
+            std::cout << "Parsing Started\n" << std::endl;
+            while(*p && i<buffsize){
+                std::string temp = "";
+                while(*p != '\n'){
+                    i++;
+                    temp += *p;
+                    p++;
+                }
+                p++;
+                i++;
+                if(temp == "READ"){
+                    mode = 1;
+                    temp = "1";
+                }
+                else if(temp == "WRITE"){
+                    mode = 2;
+                    temp = "2";
+                }
+                else if(temp == "COUNT"){
+                    mode = 3;
+                    temp = "3";
+                }
+                else if(temp == "DELETE"){
+                    mode = 4;
+                    temp = "4";
+                }
+                else if(temp == "END"){
+                    mode = 5;
+                    temp = "5";
+                }
+                if(mode == 1 || mode == 4){
+                    temp += ' ';
+                    while(*p != '\n'){
+                        i++;
+                        temp += *p;
+                        p++;
+                    }
+                    p++;
+                    i++;
+                }
+                if(mode == 2){
+                    temp += ' ';
+                    while(*p != '\n'){
+                        i++;
+                        temp += *p;
+                        p++;
+                    }
+                    p++;
+                    i++;
+                    while(*p != '\n'){
+                        i++;
+                        temp += *p;
+                        p++;
+                    }
+                    p++;
+                    i++;
+                }
+                requests.push(temp); 
+            }
+            buffer[i] = 0;
+            std::cout << "Parsing Done\n" << std::endl;
+        }
+        void exec_commands(int sock){
+            std::string temp = "";
+            std::string key;
+            std::string val;
+            std::cout << "Execute Started\n";
+            while(!requests.empty()){
+                temp = requests.front();
+                requests.pop();
+                if(temp[0] == '1'){
+                    key = temp.substr(1, temp.size() -1);
+                    std::cout << "read " << "\t" << key << std::endl;
+                    if(kv_store.find(key) == kv_store.end()){
+                        write(sock, "NULL\n", 5);
+                    }
+                    else write(sock, (kv_store[key]+"\n").c_str(), kv_store[key].size()+1);
 
-	// Check command line arguments
-	if (argc != 2)
-	{
-		fprintf(stderr, "usage: %s <port>\n", argv[0]);
-		exit(1);
-	}
+                }
+                else if(temp[0] == '2'){
+                    size_t idx = temp.find(':');
+                    key = temp.substr(1, idx-1);
+                    val = temp.substr(idx+1, temp.size() - idx -1);
+                    std::cout << "write " << "\t" << key << "\t" << val << std::endl;
+                    kv_store[key] = val;
+                    write(sock, "FIN\n", 4);
+                }
 
-	// Server port number taken as command line argument
-	port = atoi(argv[1]);
+                else if(temp[0] == '3'){
+                    std::cout << "count " << std::endl;
+                    write(sock, (std::to_string(kv_store.size())+"\n").c_str(), (std::to_string(kv_store.size())).size()+1);
+                }
+                else if(temp[0] == '4'){
+                    key = temp.substr(1, temp.size() - 1);
+                    std::cout << "delete " << "\t" << key << std::endl;
+                    if(kv_store.find(key) == kv_store.end()){
+                        write(sock, "NULL\n", 5);
+                    }
+                    else write(sock, "FIN\n", 4);
+                }
+                else{
+                    std::cout << "end " << std::endl;
+                    write(sock, "\n", 1);
+                    close(sock);
+                }
 
-	// Create server socket
-	int server_fd = getServerSocket(port);
+            }
+            std::cout << "Execute Done\n";
+        }
+        int sockid;
+        int buffsize = 1024;
+};
+int main(int argc, char ** argv) {
+  int portno; /* port to listen on */
+  
+  /* 
+   * check command line arguments 
+   */
+  if (argc != 2) {
+    fprintf(stderr, "usage: %s <port>\n", argv[0]);
+    exit(1);
+  }
 
-	// Prepare to accept connections on socket FD.
-	if (listen(server_fd, 5) < 0)
-	{
-		cerr << "Error: Couldn't listen on socket" << endl;
-		close(server_fd);
-		return -1;
-	}
+  // DONE: Server port number taken as command line argument
+  portno = atoi(argv[1]);
 
-	cout << "Server listening on port: " << port << endl;
+  Server server(portno);
 
-	sockaddr_in client_addr;
-	socklen_t caddr_len = sizeof(client_addr);
-
-	while (true)
-	{
-		// Await a connection on socket FD.
-		int client_fd = accept(server_fd, (sockaddr *)(&client_addr), &caddr_len);
-		if (client_fd < 0)
-		{
-			cerr << "Error: Couldn't accept connection" << endl;
-			exit(1);
-		}
-		handleConnection(client_fd);
-	}
-
-	// Close server file descriptor
-	close(server_fd);
-	return 0;
-}
-
-int getServerSocket(const int &port)
-{
-	/* 	Creates a TCP socket and binds socket to specified
-		port.
-		Returns configured socket file descriptor.
-	 */
-
-	// TCP socket Creation and Configuration
-
-	// Server socket file descriptor
-	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-
-	if (server_fd < 0)
-	{
-		cerr << "Error: Couldn't open socket" << endl;
-		return -1;
-	}
-
-	// Structure to store configuration details
-	struct sockaddr_in server_addr;
-	socklen_t saddr_len = sizeof(server_addr);
-
-	memset(&server_addr, 0, saddr_len);
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = INADDR_ANY;
-	server_addr.sin_port = htons(port);
-
-	// Bind the socket to the address and port number
-	if (bind(server_fd, (struct sockaddr *)&server_addr, saddr_len) < 0)
-	{
-		cerr << "Error: Couldn't bind socket" << endl;
-		close(server_fd);
-		return -1;
-	}
-
-	return server_fd;
-}
-
-int handleConnection(int &client_fd)
-{
-	/* 	Handle Individual client connections and process
-		and respond to messages sent by the client.
-	*/
-
-	// Buffer to read in messages from client
-	char buffer[1024];
-
-	bool end = false;
-	string response;
-	string key, value;
-
-	// Until client sends END message
-	while (!end)
-	{
-		memset(buffer, 0, sizeof(buffer));
-		int bytesReceived = recv(client_fd, buffer, sizeof(buffer), 0);
-		if (bytesReceived < 0)
-		{
-			cerr << "Error: Couldn't receive message" << endl;
-			exit(1);
-		}
-		else if (bytesReceived == 0)
-		{
-			cout << "Client disconnected." << endl;
-			break;
-		}
-		else
-		{
-			string query;
-			stringstream strm(buffer);
-			while (getline(strm, query))
-			{
-
-				if (query == "READ")
-				{
-					// READ query
-
-					getline(strm, key);
-
-					// Check for presence of key
-					if (KV_DATASTORE.find(key) != KV_DATASTORE.end())
-					{
-						response = KV_DATASTORE[key] + "\n";
-					}
-					else
-					{
-						// Return NULL if key not present
-						response = "NULL\n";
-					}
-				}
-				else if (query == "WRITE")
-				{
-					// WRITE Query
-
-					getline(strm, key);
-					getline(strm, value);
-
-					// Strip colon
-					value = value.substr(1);
-
-					KV_DATASTORE[key] = value;
-
-					response = "FIN\n";
-				}
-				else if (query == "COUNT")
-				{
-					// COUNT query
-					response = to_string(KV_DATASTORE.size()) + "\n";
-				}
-				else if (query == "DELETE")
-				{
-					// DELETE query
-
-					getline(strm, key);
-					int count = 0;
-
-					// Check for presence of key
-					if (KV_DATASTORE.find(key) != KV_DATASTORE.end())
-					{
-						KV_DATASTORE.erase(key);
-						response = "FIN\n";
-					}
-					else
-					{
-						// Return NULL if key not present
-						response = "NULL\n";
-					}
-				}
-				else if (query == "END")
-				{
-					// End the connection
-					end = true;
-					break;
-				}
-
-				// Send response to client
-				send(client_fd, response.c_str(), response.length(), 0);
-
-				// Erase strings
-				response.clear();
-				key.clear();
-				value.clear();
-			}
-		}
-	}
-
-	// Close socket file descriptor
-	int res = close(client_fd);
-	return res;
 }
